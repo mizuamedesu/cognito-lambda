@@ -1,9 +1,9 @@
-const { JwtRsaVerifier } = require('aws-jwt-verify');
+const { CognitoJwtVerifier } = require('aws-jwt-verify');
 
 exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body || '{}');
-    const token = body.token;
+    const token = body.token || body.id_token;
 
     if (!token) {
       return {
@@ -14,22 +14,21 @@ exports.handler = async (event) => {
 
     const userPoolId = process.env.USER_POOL_ID;
     const clientId = process.env.CLIENT_ID;
-
-    if (!userPoolId) {
+    
+    if (!userPoolId || !clientId) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'USER_POOL_ID environment variable is not set' })
+        body: JSON.stringify({ error: 'Missing environment variables' })
       };
     }
-
-    const verifier = JwtRsaVerifier.create({
+    
+    const verifier = CognitoJwtVerifier.create({
       userPoolId: userPoolId,
       tokenUse: 'id',
       clientId: clientId
     });
 
     const payload = await verifier.verify(token);
-
     const email = payload.email;
 
     if (!email) {
@@ -45,10 +44,13 @@ exports.handler = async (event) => {
     };
 
   } catch (error) {
-    console.error('Error:', error);
     return {
       statusCode: 401,
-      body: JSON.stringify({ error: 'Invalid token' })
+      body: JSON.stringify({ 
+        error: 'Invalid token',
+        details: error.message,
+        name: error.name
+      })
     };
   }
 };
